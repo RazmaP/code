@@ -1,0 +1,170 @@
+Given that your application.properties file already exists with a different configuration, you can update it to include the necessary database connection details while keeping the existing configurations. Here's how you can modify it to include both the new Oracle database connection details and any existing configurations:
+
+Modified application.properties
+properties
+Copy code
+# Existing configurations
+server.servlet.context-path=/isxapi
+server.port=8080
+# Add other existing configurations here
+
+# Oracle Database Connection Details
+spring.datasource.url=jdbc:oracle:thin:@//your-database-host:1521/your-database-service
+spring.datasource.username=your_username
+spring.datasource.password=your_password
+spring.datasource.driver-class-name=oracle.jdbc.OracleDriver
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+Updated Filenames and Code Snippets
+1. ModelTransaction.java
+Place this file in the src/main/java/com/yourpackage/entity directory.
+
+java
+Copy code
+package com.yourpackage.entity;
+
+import javax.persistence.*;
+import java.math.BigDecimal;
+import java.util.Date;
+
+@Entity
+public class ModelTransaction {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String modelTranId;
+    private String fileName;
+    private Date isxCreateDate;
+    private String portfolioName;
+    private String ticker;
+    private String augmentedSedol;
+    private String securityName;
+    private String assetId;
+    private BigDecimal price;
+    private Date priceDate;
+    private BigDecimal quantity;
+    private BigDecimal newQuantity;
+    private BigDecimal roundedPctPortfolioWeight;
+    private BigDecimal roundedPctNewPortfolioWeight;
+    private BigDecimal roundedPctChangeInPortfolioWeight;
+    private String secType;
+    private BigDecimal recalcPctNewPortfolioWeight;
+    private BigDecimal aladdinPortfolioWeight;
+    private BigDecimal recalcPortfolioWeight;
+
+    // Getters and setters
+}
+2. ModelTransactionRepository.java
+Place this file in the src/main/java/com/yourpackage/repository directory.
+
+java
+Copy code
+package com.yourpackage.repository;
+
+import com.yourpackage.entity.ModelTransaction;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface ModelTransactionRepository extends JpaRepository<ModelTransaction, Long> {
+
+    @Query(value = "SELECT T.MODEL_TRAN_ID, F.FILE_NAME, T.ISX_CREATE_DATE, K.PORTFOLIO_NAME, K.TICKER, K.AUGMENTED_SEDOL, K.SECURITY_NAME, K.ASSET_ID, K.PRICE, K.PRICE_DATE, K.QUANTITY, K.NEW_QUANTITY, K.ROUNDED_PCT_PORTFOLIO_WEIGHT, K.ROUNDED_PCT_NEW_PORTFOLIO_WEIGHT, K.ROUNDED_PCT_CHANGE_IN_PORTFOLIO_WEIGHT, K.SEC_TYPE, K.RECALC_PCT_NEW_PORTFOLIO_WEIGHT, K.ALADDIN_PORTFOLIO_WEIGHT, K.RECALC_PORTFOLIO_WEIGHT " +
+                   "FROM ISX_MODEL_PORTFOLIO I " +
+                   "JOIN ISX_MODEL_PORTFOLIO_DETAIL K ON I.MODEL_PORTFOLIO_ID = K.MODEL_PORTFOLIO_ID " +
+                   "JOIN ISX_MODEL_FILE_UPLOAD F ON F.FILE_UPLOAD_ID = I.FILE_UPLOAD_ID " +
+                   "JOIN ISX_MODEL_TRANSACTION T ON T.MODEL_TRAN_ID = F.MODEL_TRAN_ID " +
+                   "ORDER BY T.ISX_CREATE_DATE DESC, F.FILE_NAME, K.PORTFOLIO_TICKER",
+           nativeQuery = true)
+    List<ModelTransaction> findModelTransactions();
+}
+3. ModelTransactionService.java
+Place this file in the src/main/java/com/yourpackage/service directory.
+
+java
+Copy code
+package com.yourpackage.service;
+
+import com.yourpackage.entity.ModelTransaction;
+import com.yourpackage.repository.ModelTransactionRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class ModelTransactionService {
+
+    @Autowired
+    private ModelTransactionRepository modelTransactionRepository;
+
+    public List<ModelTransaction> getModelTransactions() {
+        return modelTransactionRepository.findModelTransactions();
+    }
+}
+4. ModelTransactionController.java
+Place this file in the src/main/java/com/yourpackage/controller directory.
+
+java
+Copy code
+package com.yourpackage.controller;
+
+import com.yourpackage.entity.ModelTransaction;
+import com.yourpackage.service.ModelTransactionService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/model-transactions")
+public class ModelTransactionController {
+
+    @Autowired
+    private ModelTransactionService modelTransactionService;
+
+    @GetMapping
+    public ResponseEntity<List<ModelTransaction>> getModelTransactions() {
+        List<ModelTransaction> modelTransactions = modelTransactionService.getModelTransactions();
+        return new ResponseEntity<>(modelTransactions, HttpStatus.OK);
+    }
+}
+Directory Structure
+Ensure your directory structure looks like this:
+
+css
+Copy code
+src/
+ └── main/
+     ├── java/
+     │   └── com/
+     │       └── yourpackage/
+     │           ├── controller/
+     │           │   └── ModelTransactionController.java
+     │           ├── entity/
+     │           │   └── ModelTransaction.java
+     │           ├── repository/
+     │           │   └── ModelTransactionRepository.java
+     │           └── service/
+     │               └── ModelTransactionService.java
+     └── resources/
+         └── application.properties
+Final Steps
+Replace your-database-host, your-database-service, your_username, and your_password in application.properties with your actual database details.
+Replace com.yourpackage with your actual package structure.
+Ensure your Oracle database is running and accessible.
+Run your Spring Boot application.
+You should now be able to access your data via the API endpoint at /api/model-transactions. If you have any further questions or need additional help, feel free to ask!
+
+
+
+
+
+
