@@ -1,0 +1,131 @@
+import { Component, OnInit } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
+import { Observable, of, forkJoin } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
+import { DatePipe } from '@angular/common';
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.scss'],
+  providers: [DatePipe]
+})
+export class AppComponent implements OnInit {
+  private gridApi!: GridApi;
+  public startDate: string = '';
+  public endDate: string = '';
+  public columnDefs: ColDef[] = [
+    { field: 'modelTranId', headerName: 'ModelTranId', flex: 1 },
+    { field: 'isxCreateDate', headerName: 'ISX Create Date', flex: 1 },
+    { field: 'portfolio_ticker', flex: 1 },
+    { field: 'ticker', flex: 1 },
+    { field: 'secId', flex: 1 },
+    { field: 'assetId', flex: 1 },
+    { field: 'fileName', flex: 2 },
+    { field: 'security_name', flex: 2 },
+    { field: 'price_date', flex: 1 },
+    { field: 'price', flex: 1 },
+    { field: 'quantity', flex: 1 },
+    { field: 'new_quantity', flex: 1 },
+    { field: 'rounded_pct_portfolio_weight', flex: 2 },
+    { field: 'rounded_pct_new_portfolio_weight', flex: 2 },
+    { field: 'recalc_portfolio_weight', flex: 2 },
+    { field: 'recalc_new_portfolio_weight', flex: 2 },
+    { field: 'rounded_pct_change_in_portfolio_weight', flex: 2 },
+    { field: 'sec_type', flex: 1 }
+  ];
+  public defaultColDef: ColDef = {
+    sortable: true,
+    filter: true,
+    flex: 1,
+  };
+  public rowData: Observable<any[]> = of([]);
+  public groupDefaultExpanded = -1;
+
+  constructor(private http: HttpClient, private datePipe: DatePipe) {}
+
+  ngOnInit() {}
+
+  onGridReady(params: GridReadyEvent) {
+    this.gridApi = params.api;
+  }
+
+  onFirstDataRendered(params: GridReadyEvent) {
+    params.api.sizeColumnsToFit();
+  }
+
+  onFilterTextBoxChanged() {
+    this.gridApi.setQuickFilter((document.getElementById('filter-text-box') as any).value);
+  }
+
+  expandAll() {
+    this.gridApi.expandAll();
+  }
+
+  collapseAll() {
+    this.gridApi.collapseAll();
+  }
+
+  onStartDateChange(event: any) {
+    const rawDate = event.target.value;
+    this.startDate = this.datePipe.transform(rawDate, 'yyyy-MM-dd') || '';
+  }
+
+  onEndDateChange(event: any) {
+    const rawDate = event.target.value;
+    this.endDate = this.datePipe.transform(rawDate, 'yyyy-MM-dd') || '';
+  }
+
+  fetchDataByDateRange() {
+    const transactionsUrl = `http://localhost:8080/api/new-model-transactions?start_date=${this.startDate}&end_date=${this.endDate}`;
+    const transactionDatesUrl = `http://localhost:8080/api/new-model-transactions/dto?start_date=${this.startDate}&end_date=${this.endDate}`;
+
+    forkJoin({
+      transactions: this.http.get<any[]>(transactionsUrl),
+      transactionDates: this.http.get<any[]>(transactionDatesUrl)
+    }).pipe(
+      map(results => this.combineData(results.transactions, results.transactionDates)),
+      catchError(error => {
+        console.error('Error fetching data by date range', error);
+        return of([]);
+      })
+    ).subscribe(data => {
+      this.rowData = of(data);
+    });
+  }
+
+  combineData(transactions: any[], transactionDates: any[]): any[] {
+    const dateMap = new Map(transactionDates.map(date => [date.modelTranId, date.isxCreateDate]));
+    return transactions.map(transaction => {
+      return {
+        ...transaction,
+        isxCreateDate: dateMap.get(transaction.modelTranId)
+      };
+    });
+  }
+
+  transformData(data: any[]): any[] {
+    return data.map((item, index) => ({
+      id: index + 1,
+      modelTranId: item.modelTranId,
+      isx_create_date: new Date(item.isx_create_date).toLocaleDateString(),
+      portfolio_ticker: item.portfolio_ticker,
+      ticker: item.ticker,
+      secId: item.secId,
+      assetId: item.assetId,
+      fileName: item.file_name,
+      security_name: item.security_name,
+      price_date: new Date(item.price_date).toLocaleDateString(),
+      price: item.price,
+      quantity: item.quantity,
+      new_quantity: item.new_quantity,
+      rounded_pct_portfolio_weight: item.rounded_pct_portfolio_weight,
+      rounded_pct_new_portfolio_weight: item.rounded_pct_new_portfolio_weight,
+      recalc_portfolio_weight: item.recalc_portfolio_weight,
+      recalc_new_portfolio_weight: item.recalc_new_portfolio_weight,
+      rounded_pct_change_in_portfolio_weight: item.rounded_pct_change_in_portfolio_weight,
+      sec_type: item.sec_type,
+    }));
+  }
+}
