@@ -1,3 +1,5 @@
+ understand now. You want to include the isx_create_date as part of the display in the hierarchy but not in the header name. Additionally, you want to keep the original rowData$ observable for fetching the data. Here’s how you can achieve that:
+
 app.component.ts:
 
 typescript
@@ -20,7 +22,7 @@ export class AppComponent implements OnInit {
   private gridColumnApi: any;
   private startDate: string = '';
   private endDate: string = '';
-  public rowData!: Observable<any[]>;
+  public rowData$!: Observable<any[]>;
   public groupDefaultExpanded = 0;
 
   public columnDefs: ColDef[] = [
@@ -53,13 +55,13 @@ export class AppComponent implements OnInit {
   };
 
   public autoGroupColumnDef: ColDef = {
-    headerName: 'ModelTranId / FileName / PortfolioName / ISX Create Date',
+    headerName: 'ModelTranId / FileName / PortfolioName',
     minWidth: 300,
     cellRendererParams: {
       suppressCount: true,
       innerRenderer: (params: any) => {
         if (params.node.group) {
-          return `${params.value} (${params.node.allChildrenCount})`;
+          return `${params.value} (${params.node.allChildrenCount}) ${params.data?.isx_create_date}`;
         }
         return params.value;
       }
@@ -72,8 +74,6 @@ export class AppComponent implements OnInit {
   public gridOptions: GridOptions = {
     suppressDragLeaveHidesColumns: true,
     rowGroupPanelShow: 'always',
-    enableSorting: true,
-    enableFilter: true,
     groupDefaultExpanded: -1,
     autoGroupColumnDef: this.autoGroupColumnDef,
     columnDefs: this.columnDefs,
@@ -85,7 +85,7 @@ export class AppComponent implements OnInit {
   constructor(private http: HttpClient, private datePipe: DatePipe) {}
 
   ngOnInit() {
-    this.rowData = of([]); // Initialize with an empty array
+    this.rowData$ = of([]); // Initialize with an empty array
   }
 
   onGridReady(params: GridReadyEvent) {
@@ -154,7 +154,7 @@ export class AppComponent implements OnInit {
   }
 
   fetchDataByDateRange() {
-    this.rowData = this.http.get<any[]>(`http://localhost:8080/ixspi/api/new-model-transactions?start_date=${this.startDate}&end_date=${this.endDate}`).pipe(
+    this.rowData$ = this.http.get<any[]>(`http://localhost:8080/ixspi/api/new-model-transactions?start_date=${this.startDate}&end_date=${this.endDate}`).pipe(
       map(data => this.transformData(data)),
       catchError(error => {
         console.error('Error fetching data by date range:', error);
@@ -182,9 +182,10 @@ Copy code
     [gridOptions]="gridOptions"
     [defaultColDef]="defaultColDef"
     [autoGroupColumnDef]="autoGroupColumnDef"
-    [rowData]="rowData | async"
+    [rowData]="rowData$ | async"
     [groupDefaultExpanded]="groupDefaultExpanded"
     (firstDataRendered)="onFirstDataRendered($event)"
     (gridReady)="onGridReady($event)">
   </ag-grid-angular>
 </div>
+This implementation maintains the original rowData$ observable for fetching data and includes the isx_create_date in the group renderer without modifying the header name. The isx_create_date will now be displayed in the grouped column along with the ModelTranId / FileName / PortfolioName.
