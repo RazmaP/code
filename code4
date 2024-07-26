@@ -1,35 +1,3 @@
-It looks like we need to ensure all original functionality is included and address the errors. Specifically, the errors related to getRowNodeId and rowData type should be corrected. Here is the updated code with necessary corrections:
-
-app.component.html
-html
-Copy code
-<div class="example-wrapper" style="width: 100%; height: 100%; overflow-x: auto;">
-    <div style="margin-bottom: 5px;">
-        <input id="filter-text-box" placeholder="Filter..." (input)="onFilterTextBoxChanged()">
-        <button (click)="expandAll()">Expand All</button>
-        <button (click)="collapseAll()">Collapse All</button>
-        <input type="date" id="start-date-input" (change)="onStartDateChange($event)">
-        <input type="date" id="end-date-input" (change)="onEndDateChange($event)">
-        <button (click)="fetchDataByDateRange()">By Date Range</button>
-    </div>
-    <ag-grid-angular
-        style="width: 100%; height: calc(100% - 40px);"
-        id="myGrid"
-        [gridOptions]="gridOptions"
-        class="ag-theme-alpine"
-        [columnDefs]="columnDefs"
-        [defaultColDef]="defaultColDef"
-        [autoGroupColumnDef]="autoGroupColumnDef"
-        [rowData]="rowData | async"
-        [groupDefaultExpanded]="groupDefaultExpanded"
-        [getDataPath]="getDataPath"
-        (firstDataRendered)="onFirstDataRendered($event)"
-        (gridReady)="onGridReady($event)">
-    </ag-grid-angular>
-</div>
-app.component.ts
-typescript
-Copy code
 import { Component, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { ColDef, GridApi, GridReadyEvent, GridOptions } from 'ag-grid-community';
@@ -127,8 +95,18 @@ export class AppComponent implements OnInit {
   }
 
   fetchDataByDateRange() {
+    if (!this.startDate || !this.endDate) {
+      console.error('Start date and end date must be provided.');
+      return;
+    }
+
+    console.log(`Fetching data from ${this.startDate} to ${this.endDate}`);
+
     this.rowData = this.http.get<any[]>(`http://localhost:8080/api/new-model-transactions?start_date=${this.startDate}&end_date=${this.endDate}`).pipe(
-      map(data => this.transformData(data)),
+      map(data => {
+        console.log('Data received from API:', data);
+        return this.transformData(data);
+      }),
       catchError(error => {
         console.error('Error fetching data by date range', error);
         return of([]);
