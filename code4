@@ -1,11 +1,5 @@
-Based on the images provided and the description, it looks like you want to implement a hierarchical structure in the AG Grid to display the model transaction data with a tree-like view where modelTranId will have child elements.
+It looks like we need to ensure all original functionality is included and address the errors. Specifically, the errors related to getRowNodeId and rowData type should be corrected. Here is the updated code with necessary corrections:
 
-Here is how you can modify your Angular component and HTML template to achieve this:
-
-1. Modify the columnDefs to include the autoGroupColumnDef for the tree structure.
-2. Use getDataPath in gridOptions to define the hierarchical data path.
-3. Update the transformData function to structure the data accordingly.
-Updated Code:
 app.component.html
 html
 Copy code
@@ -25,9 +19,10 @@ Copy code
         class="ag-theme-alpine"
         [columnDefs]="columnDefs"
         [defaultColDef]="defaultColDef"
-        [rowData]="rowData"
+        [autoGroupColumnDef]="autoGroupColumnDef"
+        [rowData]="rowData | async"
         [groupDefaultExpanded]="groupDefaultExpanded"
-        [getRowNodeId]="getDataPath"
+        [getDataPath]="getDataPath"
         (firstDataRendered)="onFirstDataRendered($event)"
         (gridReady)="onGridReady($event)">
     </ag-grid-angular>
@@ -94,6 +89,7 @@ export class AppComponent implements OnInit {
 
   public gridOptions: GridOptions = {
     suppressDragLeaveHidesColumns: true,
+    getRowId: params => params.data.id
   };
 
   constructor(private http: HttpClient, private datePipe: DatePipe) {}
@@ -173,8 +169,3 @@ export class AppComponent implements OnInit {
     }));
   }
 }
-Summary of Changes:
-Auto Group Column Definition: Added autoGroupColumnDef to define the tree structure.
-Data Path Definition: Implemented getDataPath to specify the hierarchy of data.
-Data Transformation: Updated transformData to include the hierarchical structure in the orgHierarchy array.
-These changes should allow you to display a hierarchical tree structure with modelTranId, fileName, and portfolioName in the AG Grid. If you need further customization or additional functionalities, feel free to ask!
