@@ -1,37 +1,12 @@
-<div class="example-wrapper" style="width: 100%; height: 100%; overflow-x: auto;">
-    <div style="margin-bottom: 5px;">
-        <input id="filter-text-box" placeholder="Filter..." (input)="onFilterTextBoxChanged()">
-        <button (click)="expandAll()">Expand All</button>
-        <button (click)="collapseAll()">Collapse All</button>
-        <input type="date" id="start-date-input" (change)="onStartDateChange($event)">
-        <input type="date" id="end-date-input" (change)="onEndDateChange($event)">
-        <button (click)="fetchDataByDateRange()">By Date Range</button>
-    </div>
-    <ag-grid-angular
-        style="width: 100%; height: calc(100% - 40px);"
-        id="myGrid"
-        [gridOptions]="gridOptions"
-        class="ag-theme-alpine"
-        [columnDefs]="columnDefs"
-        [defaultColDef]="defaultColDef"
-        [autoGroupColumnDef]="autoGroupColumnDef"
-        [rowData]="rowData | async"
-        [groupDefaultExpanded]="groupDefaultExpanded"
-        [getDataPath]="getDataPath"
-        (firstDataRendered)="onFirstDataRendered($event)"
-        (gridReady)="onGridReady($event)">
-    </ag-grid-angular>
-</div>
-app.component.ts
-Update the component to include the new API call and merge the data.
+app.component.ts:
 
 typescript
 Copy code
-import { Component, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { ColDef, GridApi, GridReadyEvent, GridOptions } from 'ag-grid-community';
-import { Observable, of, forkJoin } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { Component, OnInit } from '@angular/core';
+import { ColDef, GridReadyEvent, GridApi, GridOptions } from 'ag-grid-community';
+import { Observable, of } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
 import { DatePipe } from '@angular/common';
 
 @Component({
@@ -42,35 +17,43 @@ import { DatePipe } from '@angular/common';
 })
 export class AppComponent implements OnInit {
   private gridApi!: GridApi;
-  public startDate: string = '';
-  public endDate: string = '';
+  private gridColumnApi: any;
+  private startDate: string = '';
+  private endDate: string = '';
+  public rowData!: Observable<any[]>;
+  public groupDefaultExpanded = 0;
+
   public columnDefs: ColDef[] = [
-    { field: 'isx_create_date', headerName: 'ISX Create Date', flex: 1 },
+    { field: 'modelTranId', hide: true },
+    { field: 'fileName', hide: true },
+    { field: 'portfolioName', hide: true },
+    { field: 'isx_create_date', hide: true },
     { field: 'portfolio_ticker', flex: 1 },
     { field: 'ticker', flex: 1 },
-    { field: 'secId', flex: 1 },
-    { field: 'assetId', flex: 1 },
-    { field: 'fileName', flex: 2 },
+    { field: 'sedol', flex: 1 },
     { field: 'security_name', flex: 2 },
+    { field: 'asset_id', flex: 1 },
     { field: 'price_date', flex: 1 },
     { field: 'price', flex: 1 },
     { field: 'quantity', flex: 1 },
     { field: 'new_quantity', flex: 1 },
     { field: 'rounded_pct_portfolio_weight', flex: 2 },
-    { field: 'rounded_pct_new_portfolio_weight', flex: 2 },
     { field: 'recalc_portfolio_weight', flex: 2 },
-    { field: 'recalc_new_portfolio_weight', flex: 2 },
+    { field: 'aladdin_portfolio_weight', flex: 2 },
+    { field: 'rounded_pct_new_portfolio_weight', flex: 2 },
     { field: 'rounded_pct_change_in_portfolio_weight', flex: 2 },
-    { field: 'sec_type', flex: 1 },
-    { field: 'new_column_data', headerName: 'New Column Data', flex: 1 }  // New column
+    { field: 'sec_TYPE', flex: 1 }
   ];
+
   public defaultColDef: ColDef = {
     sortable: true,
     filter: true,
     flex: 1,
+    minWidth: 100,
   };
+
   public autoGroupColumnDef: ColDef = {
-    headerName: 'ModelTranId / FileName / PortfolioName',
+    headerName: 'ModelTranId / FileName / PortfolioName / ISX Create Date',
     minWidth: 300,
     cellRendererParams: {
       suppressCount: true,
@@ -80,26 +63,72 @@ export class AppComponent implements OnInit {
         }
         return params.value;
       }
+    },
+    comparator: (valueA, valueB, nodeA, nodeB, isInverted) => {
+      return valueA.localeCompare(valueB);
     }
   };
-  public rowData: Observable<any[]> = of([]);
-  public groupDefaultExpanded = 0;
 
   public gridOptions: GridOptions = {
     suppressDragLeaveHidesColumns: true,
-    getRowId: params => params.data.id
+    rowGroupPanelShow: 'always',
+    enableSorting: true,
+    enableFilter: true,
+    groupDefaultExpanded: -1,
+    autoGroupColumnDef: this.autoGroupColumnDef,
+    columnDefs: this.columnDefs,
+    defaultColDef: this.defaultColDef,
+    onFirstDataRendered: this.onFirstDataRendered.bind(this),
+    onGridReady: this.onGridReady.bind(this),
   };
 
   constructor(private http: HttpClient, private datePipe: DatePipe) {}
 
-  ngOnInit() {}
+  ngOnInit() {
+    this.rowData = of([]); // Initialize with an empty array
+  }
 
   onGridReady(params: GridReadyEvent) {
     this.gridApi = params.api;
+    this.gridColumnApi = params.columnApi;
+    this.autoSizeAllColumns(params);
   }
 
   onFirstDataRendered(params: GridReadyEvent) {
-    params.api.sizeColumnsToFit();
+    this.autoSizeAllColumns(params);
+  }
+
+  autoSizeAllColumns(params: GridReadyEvent) {
+    const allColumns = params.columnApi.getAllColumns();
+    if (allColumns) {
+      const allColumnIds: string[] = allColumns.map(column => column.getId());
+      params.columnApi.autoSizeColumns(allColumnIds);
+    }
+  }
+
+  transformData(data: any[]): any[] {
+    return data.map((item, index) => ({
+      id: index + 1,
+      modelTranId: item.modelTranId.toString(),
+      fileName: item.file_name,
+      portfolioName: item.portfolio_name,
+      isx_create_date: new Date(item.isx_create_date).toLocaleDateString(),
+      portfolio_ticker: item.portfolio_ticker,
+      ticker: item.ticker,
+      sedol: item.sedol,
+      security_name: item.security_name,
+      asset_id: item.asset_id,
+      price_date: item.price_date,
+      price: item.price,
+      quantity: item.new_quantity,
+      new_quantity: item.new_quantity,
+      rounded_pct_portfolio_weight: item.rounded_pct_portfolio_weight,
+      recalc_portfolio_weight: item.recalc_portfolio_weight,
+      aladdin_portfolio_weight: item.aladdin_portfolio_weight,
+      rounded_pct_new_portfolio_weight: item.rounded_pct_new_portfolio_weight,
+      rounded_pct_change_in_portfolio_weight: item.rounded_pct_change_in_portfolio_weight,
+      sec_TYPE: item.sec_TYPE
+    }));
   }
 
   onFilterTextBoxChanged() {
@@ -125,74 +154,37 @@ export class AppComponent implements OnInit {
   }
 
   fetchDataByDateRange() {
-    if (!this.startDate || !this.endDate) {
-      console.error('Start date and end date must be provided.');
-      return;
-    }
-
-    console.log(`Fetching data from ${this.startDate} to ${this.endDate}`);
-
-    const originalApiUrl = `http://localhost:8080/api/new-model-transactions?start_date=${this.startDate}&end_date=${this.endDate}`;
-    const newApiUrl = `http://localhost:8080/api/new-model-transactions?dto_start_date=${this.startDate}&dto_end_date=${this.endDate}`;
-
-    forkJoin({
-      originalData: this.http.get<any[]>(originalApiUrl).pipe(
-        catchError(error => {
-          console.error('Error fetching data from original API', error);
-          return of([]);
-        })
-      ),
-      newData: this.http.get<any[]>(newApiUrl).pipe(
-        catchError(error => {
-          console.error('Error fetching data from new API', error);
-          return of([]);
-        })
-      )
-    }).subscribe(({ originalData, newData }) => {
-      const mergedData = this.mergeData(originalData, newData);
-      this.rowData = of(this.transformData(mergedData));
-    });
-  }
-
-  mergeData(originalData: any[], newData: any[]): any[] {
-    const newDataMap = new Map(newData.map(item => [item.modelTranId, item]));
-    return originalData.map(item => ({
-      ...item,
-      new_column_data: newDataMap.get(item.modelTranId)?.isxCreateDate || 'N/A'
-    }));
-  }
-
-  getDataPath(data: any): string[] {
-    return data.orgHierarchy;
-  }
-
-  transformData(data: any[]): any[] {
-    return data.map((item, index) => ({
-      id: index + 1,
-      orgHierarchy: [
-        item.modelTranId.toString(),
-        item.fileName,
-        item.portfolioName,
-      ],
-      modelTranId: item.modelTranId,
-      isx_create_date: new Date(item.isx_create_date).toLocaleDateString(),
-      portfolio_ticker: item.portfolio_ticker,
-      ticker: item.ticker,
-      secId: item.secId,
-      assetId: item.assetId,
-      fileName: item.fileName,
-      security_name: item.security_name,
-      price_date: new Date(item.price_date).toLocaleDateString(),
-      price: item.price,
-      quantity: item.quantity,
-      new_quantity: item.new_quantity,
-      rounded_pct_portfolio_weight: item.rounded_pct_portfolio_weight,
-      rounded_pct_new_portfolio_weight: item.rounded_pct_new_portfolio_weight,
-      recalc_portfolio_weight: item.recalc_portfolio_weight,
-      recalc_new_portfolio_weight: item.recalc_new_portfolio_weight,
-      rounded_pct_change_in_portfolio_weight: item.rounded_pct_change_in_portfolio_weight,
-      sec_type: item.sec_type,
-      new_column_data: item.new_column_data // New column data
-    }));
+    this.rowData = this.http.get<any[]>(`http://localhost:8080/ixspi/api/new-model-transactions?start_date=${this.startDate}&end_date=${this.endDate}`).pipe(
+      map(data => this.transformData(data)),
+      catchError(error => {
+        console.error('Error fetching data by date range:', error);
+        return of([]);
+      })
+    );
   }
 }
+app.component.html:
+
+html
+Copy code
+<div class="example-wrapper" style="width: 100%; height: 100%; overflow-x: auto;">
+  <div style="margin-bottom: 5px">
+    <input type="text" id="filter-text-box" placeholder="Filter..." (input)="onFilterTextBoxChanged()"/>
+    <button (click)="expandAll()">Expand All</button>
+    <button (click)="collapseAll()">Collapse All</button>
+    <input type="date" id="start-date-input" (change)="onStartDateChange($event)" />
+    <input type="date" id="end-date-input" (change)="onEndDateChange($event)" />
+    <button (click)="fetchDataByDateRange()">Search by Date Range</button>
+  </div>
+  <ag-grid-angular
+    style="width: 100%; height: calc(100% - 40px);"
+    class="ag-theme-alpine"
+    [gridOptions]="gridOptions"
+    [defaultColDef]="defaultColDef"
+    [autoGroupColumnDef]="autoGroupColumnDef"
+    [rowData]="rowData | async"
+    [groupDefaultExpanded]="groupDefaultExpanded"
+    (firstDataRendered)="onFirstDataRendered($event)"
+    (gridReady)="onGridReady($event)">
+  </ag-grid-angular>
+</div>
