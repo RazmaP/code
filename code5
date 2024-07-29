@@ -1,0 +1,263 @@
+To achieve the desired functionality of connecting the two tables and displaying related data in the second table based on the selection in the first table, you can follow these steps:
+
+Modify the onFirstGridReady method to capture the API instance of the first grid.
+Implement a selection changed event for the first grid.
+Update the second grid data based on the selected modelTranId.
+Ensure the second grid's row data is cleared when no row is selected.
+Here's the complete solution:
+
+app.component.html
+html
+Copy code
+<div class="example-wrapper" style="width: 100%; height: 100%; overflow-x: auto;">
+    <div style="margin-bottom: 5px">
+        <input type="text" id="filter-text-box" placeholder="Filter..." (input)="onFilterTextBoxChanged()" />
+        <button (click)="expandAll()">Expand All</button>
+        <button (click)="collapseAll()">Collapse All</button>
+        <input type="date" id="start-date-input" (change)="onStartDateChange($event)" />
+        <input type="date" id="end-date-input" (change)="onEndDateChange($event)" />
+        <button (click)="fetchDataByDateRange()">Search by Date Range</button>
+    </div>
+    <div style="width: 100%; height: 50%;">
+        <ag-grid-angular
+            id="firstGrid"
+            style="width: 100%; height: 100%;"
+            class="ag-theme-alpine"
+            [columnDefs]="firstGridColumnDefs"
+            [defaultColDef]="defaultColDef"
+            [rowData]="firstGridRowData$ | async"
+            rowSelection="single"
+            (gridReady)="onFirstGridReady($event)"
+            (selectionChanged)="onFirstGridSelectionChanged()"
+            (firstDataRendered)="onFirstDataRendered($event)">
+        </ag-grid-angular>
+    </div>
+    <div *ngIf="(secondGridRowData$ | async)?.length" style="width: 100%; height: 50%;">
+        <ag-grid-angular
+            id="secondGrid"
+            style="width: 100%; height: 100%;"
+            class="ag-theme-alpine"
+            [columnDefs]="columnDefs"
+            [defaultColDef]="defaultColDef"
+            [autoGroupColumnDef]="autoGroupColumnDef"
+            [rowData]="secondGridRowData$ | async"
+            [treeData]="true"
+            [groupDefaultExpanded]="groupDefaultExpanded"
+            [getDataPath]="getDataPath"
+            (gridReady)="onSecondGridReady($event)"
+            (firstDataRendered)="onFirstDataRendered($event)">
+        </ag-grid-angular>
+    </div>
+</div>
+app.component.ts
+typescript
+Copy code
+import { Component, OnInit } from '@angular/core';
+import { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
+import { Observable, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
+import { DatePipe } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
+import { MatSnackBar } from '@angular/material/snack-bar';
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.scss'],
+  providers: [DatePipe]
+})
+export class AppComponent implements OnInit {
+  private firstGridApi!: GridApi;
+  private secondGridApi!: GridApi;
+  startDate!: string;
+  endDate!: string;
+  selectedModelTranId!: string;
+
+  public columnDefs: ColDef[] = [
+    { field: 'modelTranId', headerName: 'ModelTranId', flex: 1 },
+    { field: 'file_name', headerName: 'File Name', flex: 1 },
+    { field: 'portfolio_name', headerName: 'Portfolio Name', flex: 1 },
+    { field: 'ticker', headerName: 'Ticker', flex: 1 },
+    { field: 'sedol', headerName: 'SEDOL', flex: 1 },
+    { field: 'security_name', headerName: 'Security Name', flex: 1 },
+    { field: 'asset_id', headerName: 'Asset ID', flex: 1 },
+    { field: 'price', headerName: 'Price', flex: 1 },
+    { field: 'price_date', headerName: 'Price Date', flex: 1 },
+    { field: 'quantity', headerName: 'Quantity', flex: 1 },
+    { field: 'new_quantity', headerName: 'New Quantity', flex: 1 },
+    { field: 'rounded_pct_portfolio_weight', headerName: 'Rounded PCT Portfolio Weight', flex: 2 },
+    { field: 'recalc_portfolio_weight', headerName: 'Recalc Portfolio Weight', flex: 2 },
+    { field: 'aladdin_portfolio_weight', headerName: 'Aladdin Portfolio Weight', flex: 2 },
+    { field: 'recalc_pct_new_portfolio_weight', headerName: 'Recalc PCT New Portfolio Weight', flex: 2 },
+    { field: 'rounded_pct_new_portfolio_weight', headerName: 'Rounded PCT New Portfolio Weight', flex: 2 },
+    { field: 'rounded_pct_change_in_portfolio_weight', headerName: 'Rounded PCT Change in Portfolio Weight', flex: 2 },
+    { field: 'sec_type', headerName: 'SEC Type', flex: 1 },
+  ];
+
+  public firstGridColumnDefs: ColDef[] = [
+    { 
+      headerCheckboxSelection: true,
+      checkboxSelection: true,
+      field: 'modelTranId', headerName: 'ModelTranId', flex: 1 
+    },
+    { field: 'isx_create_date', headerName: 'ISX Create Date', flex: 1 }
+  ];
+
+  public defaultColDef: ColDef = {
+    sortable: true,
+    filter: true
+  };
+
+  public rowData$: Observable<any[]> = of([]);
+  public firstGridRowData$: Observable<any[]> = of([]);
+  public secondGridRowData$: Observable<any[]> = of([]);
+
+  constructor(private http: HttpClient, private datePipe: DatePipe, private snackBar: MatSnackBar) {}
+
+  ngOnInit(): void {}
+
+  transformData(data: any[]): any[] {
+    return data.map((item, index) => ({
+      id: index + 1,
+      modelTranId: item.modelTranId,
+      file_name: item.file_name,
+      portfolio_name: item.portfolio_name,
+      ticker: item.ticker,
+      sedol: item.sedol,
+      security_name: item.security_name,
+      asset_id: item.asset_id,
+      price: item.price,
+      price_date: new Date(item.price_date).toLocaleDateString(),
+      quantity: item.quantity,
+      new_quantity: item.new_quantity,
+      rounded_pct_portfolio_weight: item.rounded_pct_portfolio_weight,
+      recalc_portfolio_weight: item.recalc_portfolio_weight,
+      aladdin_portfolio_weight: item.aladdin_portfolio_weight,
+      recalc_pct_new_portfolio_weight: item.recalc_pct_new_portfolio_weight,
+      rounded_pct_new_portfolio_weight: item.rounded_pct_new_portfolio_weight,
+      rounded_pct_change_in_portfolio_weight: item.rounded_pct_change_in_portfolio_weight,
+      sec_type: item.sec_type,
+      visible: false // Add this flag
+    }));
+  }
+
+  transformFirstGridData(data: any[]): any[] {
+    const uniqueData = data.reduce((acc, item) => {
+      const key = `${item.modelTranId}-${item.isxCreateDate}`;
+      if (!acc[key]) {
+        const date = new Date(item.isxCreateDate);
+        const formattedDate = this.datePipe.transform(date, 'yyyy-MM-dd');
+        acc[key] = {
+          modelTranId: item.modelTranId,
+          isx_create_date: formattedDate ? formattedDate : 'Invalid Date'
+        };
+      }
+      return acc;
+    }, {});
+    return Object.values(uniqueData);
+  }
+
+  onFilterTextBoxChanged() {
+    this.secondGridApi.setQuickFilter((document.getElementById('filter-text-box') as any).value);
+  }
+
+  expandAll() {
+    this.secondGridApi.expandAll();
+  }
+
+  collapseAll() {
+    this.secondGridApi.collapseAll();
+  }
+
+  onStartDateChange(event: any) {
+    const rawDate = event.target.value;
+    this.startDate = this.datePipe.transform(rawDate, 'yyyy-MM-dd') || '';
+  }
+
+  onEndDateChange(event: any) {
+    const rawDate = event.target.value;
+    this.endDate = this.datePipe.transform(rawDate, 'yyyy-MM-dd') || '';
+  }
+
+  fetchDataByDateRange() {
+    this.rowData$ = this.http.get<any[]>(`http://localhost:8080/api/new-model-transactions?start_date=${this.startDate}&end_date=${this.endDate}`).pipe(
+      map(data => this.transformData(data)),
+      catchError(error => {
+        this.snackBar.open('Error fetching data by date range', 'Close', {
+          duration: 3000,
+        });
+        console.error('Error fetching data by date range', error);
+        return of([]);
+      })
+    );
+
+    this.firstGridRowData$ = this.http.get<any[]>(`http://localhost:8080/api/new-model-transactions/dto?start_date=${this.startDate}&end_date=${this.endDate}`).pipe(
+      map(data => this.transformFirstGridData(data)),
+      catchError(error => {
+        this.snackBar.open('Error fetching data by date range', '
+
+
+
+
+continue where you stoped
+ChatGPT
+Certainly! Let's continue from where we left off by completing the fetchDataByDateRange method and implementing the required methods to update the second grid based on the selection in the first grid.
+
+app.component.ts (Continued)
+typescript
+Copy code
+      duration: 3000,
+    });
+    console.error('Error fetching data by date range', error);
+    return of([]);
+  })
+);
+
+this.firstGridRowData$ = this.http.get<any[]>(`http://localhost:8080/api/new-model-transactions/dto?start_date=${this.startDate}&end_date=${this.endDate}`).pipe(
+  map(data => this.transformFirstGridData(data)),
+  catchError(error => {
+    this.snackBar.open('Error fetching data by date range', 'Close', {
+      duration: 3000,
+    });
+    console.error('Error fetching data by date range', error);
+    return of([]);
+  })
+);
+}
+
+updateSecondGridData(selectedModelTranId: string) {
+this.secondGridRowData$ = this.http.get<any[]>(`http://localhost:8080/api/model-transactions/${selectedModelTranId}`).pipe(
+  map(data => this.transformData(data)),
+  catchError(error => {
+    this.snackBar.open('Error fetching second grid data', 'Close', {
+      duration: 3000,
+    });
+    console.error('Error fetching second grid data', error);
+    return of([]);
+  })
+);
+}
+
+onFirstGridSelectionChanged() {
+const selectedNodes = this.firstGridApi.getSelectedNodes();
+if (selectedNodes.length > 0) {
+  const selectedModelTranId = selectedNodes[0].data.modelTranId;
+  this.updateSecondGridData(selectedModelTranId);
+} else {
+  // Clear the second grid data when no row is selected
+  this.secondGridRowData$ = of([]);
+}
+}
+
+onFirstGridReady(params: GridReadyEvent) {
+this.firstGridApi = params.api;
+}
+
+onSecondGridReady(params: GridReadyEvent) {
+this.secondGridApi = params.api;
+}
+
+onFirstDataRendered(params: any) {
+params.api.sizeColumnsToFit();
+}
+}
