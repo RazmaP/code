@@ -1,56 +1,6 @@
-<div class="example-wrapper" style="width: 100%; height: 100%; overflow-x: auto;">
-    <div style="margin-bottom: 5px">
-        <input type="text" id="filter-text-box" placeholder="Filter..." (input)="onFilterTextBoxChanged()" />
-        <button (click)="expandAll()">Expand All</button>
-        <button (click)="collapseAll()">Collapse All</button>
-        <input type="date" id="start-date-input" (change)="onStartDateChange($event)" />
-        <input type="date" id="end-date-input" (change)="onEndDateChange($event)" />
-        <button (click)="fetchDataByDateRange()">Search by Date Range</button>
-    </div>
-    <div style="width: 100%; height: 80%;">
-        <ag-grid-angular
-            style="width: 100%; height: 100%;"
-            class="ag-theme-alpine"
-            [columnDefs]="columnDefs"
-            [defaultColDef]="defaultColDef"
-            [autoGroupColumnDef]="autoGroupColumnDef"
-            [rowData]="rowData$ | async"
-            [groupDefaultExpanded]="-1"
-            [getDataPath]="getDataPath"
-            (gridReady)="onGridReady($event)"
-            (firstDataRendered)="onFirstDataRendered($event)">
-        </ag-grid-angular>
-    </div>
-</div>
-Explanation:
-Filter Input and Buttons:
-
-The filter input allows the user to filter the rows in the grid.
-The "Expand All" and "Collapse All" buttons allow the user to expand or collapse all the grouped rows.
-Date Inputs:
-
-These inputs allow the user to select a start date and an end date for fetching the data.
-ag-Grid Angular Component:
-
-This is the main ag-Grid component that displays the data.
-The [columnDefs], [defaultColDef], and [autoGroupColumnDef] properties define the columns and their default behavior.
-The [rowData] property is bound to the transformed data.
-The [groupDefaultExpanded] property is set to -1 to expand all groups by default.
-The (gridReady) and (firstDataRendered) events are used to handle grid initialization and rendering events.
-getDataPath Function:
-In your app.component.ts, add the getDataPath function to define the path structure for the hierarchical data.
-
-typescript
-Copy code
-getDataPath = (data: any) => {
-  return [data.isx_create_date, data.modelTranId];
-};
-Full app.component.ts (with getDataPath):
-typescript
-Copy code
 import { Component, OnInit } from '@angular/core';
 import { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
-import { Observable, of, forkJoin } from 'rxjs';
+import { Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { DatePipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
@@ -106,19 +56,19 @@ export class AppComponent implements OnInit {
 
   ngOnInit(): void {}
 
-  transformData(firstGridData: any[], secondGridData: any[]): any[] {
-    const combinedData = firstGridData.map(item => {
-      const relatedData = secondGridData.filter(d => d.modelTranId === item.modelTranId);
+  transformData(data: any[]): any[] {
+    const transformedData = data.map(item => {
+      const date = new Date(item.isx_create_date);
+      const formattedDate = this.datePipe.transform(date, 'yyyy-MM-dd');
+
       return {
-        isx_create_date: item.isx_create_date,
+        ...item,
+        isx_create_date: formattedDate ? formattedDate : 'Invalid Date',
         modelTranId: `${item.modelTranId}-${item.file_name}-${item.portfolio_name}`,
-        children: relatedData.map(d => ({
-          ...d,
-          isx_create_date: item.isx_create_date
-        }))
       };
     });
-    return combinedData;
+
+    return transformedData;
   }
 
   getDataPath = (data: any) => {
@@ -148,29 +98,13 @@ export class AppComponent implements OnInit {
   }
 
   fetchDataByDateRange() {
-    const firstGridData$ = this.http.get<any[]>(`http://localhost:8080/api/new-model-transactions/dto?start_date=${this.startDate}&end_date=${this.endDate}`).pipe(
-      map(data => this.transformFirstGridData(data)),
-      catchError(error => {
-        console.error('Error fetching first grid data by date range', error);
-        return of([]);
-      })
-    );
-
-    const secondGridData$ = this.http.get<any[]>(`http://localhost:8080/api/new-model-transactions?start_date=${this.startDate}&end_date=${this.endDate}`).pipe(
+    this.rowData$ = this.http.get<any[]>(`http://localhost:8080/api/new-model-transactions?start_date=${this.startDate}&end_date=${this.endDate}`).pipe(
       map(data => this.transformData(data)),
       catchError(error => {
-        console.error('Error fetching second grid data by date range', error);
+        console.error('Error fetching data by date range', error);
         return of([]);
       })
     );
-
-    forkJoin([firstGridData$, secondGridData$]).pipe(
-      map(([firstGridData, secondGridData]) => this.transformData(firstGridData, secondGridData)),
-      catchError(error => {
-        console.error('Error combining data', error);
-        return of([]);
-      })
-    ).subscribe(combinedData => this.rowData$ = of(combinedData));
   }
 
   onGridReady(params: GridReadyEvent) {
@@ -181,3 +115,36 @@ export class AppComponent implements OnInit {
     params.api.sizeColumnsToFit();
   }
 }
+app.component.html
+html
+Copy code
+<div class="example-wrapper" style="width: 100%; height: 100%; overflow-x: auto;">
+    <div style="margin-bottom: 5px">
+        <input type="text" id="filter-text-box" placeholder="Filter..." (input)="onFilterTextBoxChanged()" />
+        <button (click)="expandAll()">Expand All</button>
+        <button (click)="collapseAll()">Collapse All</button>
+        <input type="date" id="start-date-input" (change)="onStartDateChange($event)" />
+        <input type="date" id="end-date-input" (change)="onEndDateChange($event)" />
+        <button (click)="fetchDataByDateRange()">Search by Date Range</button>
+    </div>
+    <div style="width: 100%; height: 80%;">
+        <ag-grid-angular
+            style="width: 100%; height: 100%;"
+            class="ag-theme-alpine"
+            [columnDefs]="columnDefs"
+            [defaultColDef]="defaultColDef"
+            [autoGroupColumnDef]="autoGroupColumnDef"
+            [rowData]="rowData$ | async"
+            [groupDefaultExpanded]="-1"
+            [getDataPath]="getDataPath"
+            (gridReady)="onGridReady($event)"
+            (firstDataRendered)="onFirstDataRendered($event)">
+        </ag-grid-angular>
+    </div>
+</div>
+Explanation
+Column Definitions: The isx_create_date and modelTranId columns are set as row groups and hidden. The autoGroupColumnDef is used to group rows automatically and suppress the count in the group header.
+Data Transformation: The transformData method maps the data to include a formatted date and combines modelTranId, file_name, and portfolio_name into a single modelTranId field.
+Data Fetching: The fetchDataByDateRange method fetches data from the single endpoint and processes it.
+HTML Structure: The HTML structure includes filter input, expand/collapse buttons, date inputs, and the ag-Grid component.
+This setup should provide the required hierarchical table structure based on the data fetched from the specified API.
