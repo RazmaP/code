@@ -39,21 +39,21 @@ export class AppComponent {
   onFirstGridSelectionChanged() {
     const selectedNodes = this.firstGridApi.getSelectedNodes();
     if (selectedNodes.length > 0) {
-      const selectedData = selectedNodes[0].data;
-      this.updateSecondGridData(selectedData.id);
+      const selectedIds = selectedNodes.map(node => node.data.id);
+      this.updateSecondGridData(selectedIds);
     } else {
       this.secondGridRowData$ = of([]);
     }
   }
 
-  updateSecondGridData(selectedId: number) {
+  updateSecondGridData(selectedIds: number[]) {
     const data = [
       { id: 1, detail: 'Detail for John' },
       { id: 2, detail: 'Detail for Jane' },
       { id: 3, detail: 'Detail for Bob' }
     ];
 
-    const filteredData = data.filter(item => item.id === selectedId);
+    const filteredData = data.filter(item => selectedIds.includes(item.id));
     this.secondGridRowData$ = of(filteredData);
   }
 }
@@ -68,7 +68,7 @@ Copy code
       [columnDefs]="firstGridColumnDefs"
       [defaultColDef]="{ sortable: true, filter: true }"
       [rowData]="firstGridRowData$ | async"
-      rowSelection="single"
+      rowSelection="multiple"
       (gridReady)="onFirstGridReady($event)"
       (selectionChanged)="onFirstGridSelectionChanged()">
     </ag-grid-angular>
