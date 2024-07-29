@@ -12,7 +12,7 @@ export class AppComponent {
   private secondGridApi!: GridApi;
 
   public firstGridColumnDefs: ColDef[] = [
-    { field: 'id', headerName: 'ID', checkboxSelection: true },
+    { field: 'id', headerName: 'ID', checkboxSelection: true, headerCheckboxSelection: true },
     { field: 'name', headerName: 'Name' }
   ];
 
@@ -38,12 +38,8 @@ export class AppComponent {
 
   onFirstGridSelectionChanged() {
     const selectedNodes = this.firstGridApi.getSelectedNodes();
-    if (selectedNodes.length > 0) {
-      const selectedIds = selectedNodes.map(node => node.data.id);
-      this.updateSecondGridData(selectedIds);
-    } else {
-      this.secondGridRowData$ = of([]);
-    }
+    const selectedIds = selectedNodes.map(node => node.data.id);
+    this.updateSecondGridData(selectedIds);
   }
 
   updateSecondGridData(selectedIds: number[]) {
