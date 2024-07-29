@@ -1,150 +1,86 @@
-import { Component, OnInit } from '@angular/core';
+import { Component } from '@angular/core';
 import { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
 import { Observable, of } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
-import { DatePipe } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
 
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
-  styleUrls: ['./app.component.scss'],
-  providers: [DatePipe]
+  styleUrls: ['./app.component.scss']
 })
-export class AppComponent implements OnInit {
-  private gridApi!: GridApi;
-  startDate!: string;
-  endDate!: string;
+export class AppComponent {
+  private firstGridApi!: GridApi;
+  private secondGridApi!: GridApi;
 
-  public columnDefs: ColDef[] = [
-    { field: 'isx_create_date', headerName: 'ISX Create Date', rowGroup: true, hide: true },
-    { field: 'modelTranId', headerName: 'ModelTranId', rowGroup: true, hide: true },
-    { field: 'file_name', headerName: 'File Name', flex: 1 },
-    { field: 'portfolio_name', headerName: 'Portfolio Name', flex: 1 },
-    { field: 'ticker', headerName: 'Ticker', flex: 1 },
-    { field: 'sedol', headerName: 'SEDOL', flex: 1 },
-    { field: 'security_name', headerName: 'Security Name', flex: 1 },
-    { field: 'asset_id', headerName: 'Asset ID', flex: 1 },
-    { field: 'price', headerName: 'Price', flex: 1 },
-    { field: 'price_date', headerName: 'Price Date', flex: 1 },
-    { field: 'quantity', headerName: 'Quantity', flex: 1 },
-    { field: 'new_quantity', headerName: 'New Quantity', flex: 1 },
-    { field: 'rounded_pct_portfolio_weight', headerName: 'Rounded PCT Portfolio Weight', flex: 2 },
-    { field: 'recalc_portfolio_weight', headerName: 'Recalc Portfolio Weight', flex: 2 },
-    { field: 'aladdin_portfolio_weight', headerName: 'Aladdin Portfolio Weight', flex: 2 },
-    { field: 'recalc_pct_new_portfolio_weight', headerName: 'Recalc PCT New Portfolio Weight', flex: 2 },
-    { field: 'rounded_pct_new_portfolio_weight', headerName: 'Rounded PCT New Portfolio Weight', flex: 2 },
-    { field: 'rounded_pct_change_in_portfolio_weight', headerName: 'Rounded PCT Change in Portfolio Weight', flex: 2 },
-    { field: 'sec_type', headerName: 'SEC Type', flex: 1 },
+  public firstGridColumnDefs: ColDef[] = [
+    { field: 'id', headerName: 'ID', checkboxSelection: true },
+    { field: 'name', headerName: 'Name' }
   ];
 
-  public defaultColDef: ColDef = {
-    sortable: true,
-    filter: true
-  };
+  public secondGridColumnDefs: ColDef[] = [
+    { field: 'detail', headerName: 'Detail' }
+  ];
 
-  public autoGroupColumnDef: ColDef = {
-    headerName: 'Group',
-    cellRendererParams: {
-      suppressCount: true,
+  public firstGridRowData$: Observable<any[]> = of([
+    { id: 1, name: 'John' },
+    { id: 2, name: 'Jane' },
+    { id: 3, name: 'Bob' }
+  ]);
+
+  public secondGridRowData$: Observable<any[]> = of([]);
+
+  onFirstGridReady(params: GridReadyEvent) {
+    this.firstGridApi = params.api;
+  }
+
+  onSecondGridReady(params: GridReadyEvent) {
+    this.secondGridApi = params.api;
+  }
+
+  onFirstGridSelectionChanged() {
+    const selectedNodes = this.firstGridApi.getSelectedNodes();
+    if (selectedNodes.length > 0) {
+      const selectedData = selectedNodes[0].data;
+      this.updateSecondGridData(selectedData.id);
+    } else {
+      this.secondGridRowData$ = of([]);
     }
-  };
-
-  public rowData$: Observable<any[]> = of([]);
-
-  constructor(private http: HttpClient, private datePipe: DatePipe) {}
-
-  ngOnInit(): void {}
-
-  transformData(data: any[]): any[] {
-    const transformedData = data.map(item => {
-      const date = new Date(item.isx_create_date);
-      const formattedDate = this.datePipe.transform(date, 'yyyy-MM-dd');
-
-      return {
-        ...item,
-        isx_create_date: formattedDate ? formattedDate : 'Invalid Date',
-        modelTranId: `${item.modelTranId}-${item.file_name}-${item.portfolio_name}`,
-      };
-    });
-
-    return transformedData;
   }
 
-  getDataPath = (data: any) => {
-    return [data.isx_create_date, data.modelTranId];
-  };
+  updateSecondGridData(selectedId: number) {
+    const data = [
+      { id: 1, detail: 'Detail for John' },
+      { id: 2, detail: 'Detail for Jane' },
+      { id: 3, detail: 'Detail for Bob' }
+    ];
 
-  onFilterTextBoxChanged() {
-    this.gridApi.setQuickFilter((document.getElementById('filter-text-box') as any).value);
-  }
-
-  expandAll() {
-    this.gridApi.expandAll();
-  }
-
-  collapseAll() {
-    this.gridApi.collapseAll();
-  }
-
-  onStartDateChange(event: any) {
-    const rawDate = event.target.value;
-    this.startDate = this.datePipe.transform(rawDate, 'yyyy-MM-dd') || '';
-  }
-
-  onEndDateChange(event: any) {
-    const rawDate = event.target.value;
-    this.endDate = this.datePipe.transform(rawDate, 'yyyy-MM-dd') || '';
-  }
-
-  fetchDataByDateRange() {
-    this.rowData$ = this.http.get<any[]>(`http://localhost:8080/api/new-model-transactions?start_date=${this.startDate}&end_date=${this.endDate}`).pipe(
-      map(data => this.transformData(data)),
-      catchError(error => {
-        console.error('Error fetching data by date range', error);
-        return of([]);
-      })
-    );
-  }
-
-  onGridReady(params: GridReadyEvent) {
-    this.gridApi = params.api;
-  }
-
-  onFirstDataRendered(params: any) {
-    params.api.sizeColumnsToFit();
+    const filteredData = data.filter(item => item.id === selectedId);
+    this.secondGridRowData$ = of(filteredData);
   }
 }
 app.component.html
 html
 Copy code
 <div class="example-wrapper" style="width: 100%; height: 100%; overflow-x: auto;">
-    <div style="margin-bottom: 5px">
-        <input type="text" id="filter-text-box" placeholder="Filter..." (input)="onFilterTextBoxChanged()" />
-        <button (click)="expandAll()">Expand All</button>
-        <button (click)="collapseAll()">Collapse All</button>
-        <input type="date" id="start-date-input" (change)="onStartDateChange($event)" />
-        <input type="date" id="end-date-input" (change)="onEndDateChange($event)" />
-        <button (click)="fetchDataByDateRange()">Search by Date Range</button>
-    </div>
-    <div style="width: 100%; height: 80%;">
-        <ag-grid-angular
-            style="width: 100%; height: 100%;"
-            class="ag-theme-alpine"
-            [columnDefs]="columnDefs"
-            [defaultColDef]="defaultColDef"
-            [autoGroupColumnDef]="autoGroupColumnDef"
-            [rowData]="rowData$ | async"
-            [groupDefaultExpanded]="-1"
-            [getDataPath]="getDataPath"
-            (gridReady)="onGridReady($event)"
-            (firstDataRendered)="onFirstDataRendered($event)">
-        </ag-grid-angular>
-    </div>
+  <div style="width: 100%; height: 50%;">
+    <ag-grid-angular
+      style="width: 100%; height: 100%;"
+      class="ag-theme-alpine"
+      [columnDefs]="firstGridColumnDefs"
+      [defaultColDef]="{ sortable: true, filter: true }"
+      [rowData]="firstGridRowData$ | async"
+      rowSelection="single"
+      (gridReady)="onFirstGridReady($event)"
+      (selectionChanged)="onFirstGridSelectionChanged()">
+    </ag-grid-angular>
+  </div>
+  <div style="width: 100%; height: 50%;">
+    <ag-grid-angular
+      style="width: 100%; height: 100%;"
+      class="ag-theme-alpine"
+      [columnDefs]="secondGridColumnDefs"
+      [defaultColDef]="{ sortable: true, filter: true }"
+      [rowData]="secondGridRowData$ | async"
+      (gridReady)="onSecondGridReady($event)">
+    </ag-grid-angular>
+  </div>
 </div>
-Explanation
-Column Definitions: The isx_create_date and modelTranId columns are set as row groups and hidden. The autoGroupColumnDef is used to group rows automatically and suppress the count in the group header.
-Data Transformation: The transformData method maps the data to include a formatted date and combines modelTranId, file_name, and portfolio_name into a single modelTranId field.
-Data Fetching: The fetchDataByDateRange method fetches data from the single endpoint and processes it.
-HTML Structure: The HTML structure includes filter input, expand/collapse buttons, date inputs, and the ag-Grid component.
-This setup should provide the required hierarchical table structure based on the data fetched from the specified API.
