@@ -1,6 +1,56 @@
+<div class="example-wrapper" style="width: 100%; height: 100%; overflow-x: auto;">
+    <div style="margin-bottom: 5px">
+        <input type="text" id="filter-text-box" placeholder="Filter..." (input)="onFilterTextBoxChanged()" />
+        <button (click)="expandAll()">Expand All</button>
+        <button (click)="collapseAll()">Collapse All</button>
+        <input type="date" id="start-date-input" (change)="onStartDateChange($event)" />
+        <input type="date" id="end-date-input" (change)="onEndDateChange($event)" />
+        <button (click)="fetchDataByDateRange()">Search by Date Range</button>
+    </div>
+    <div style="width: 100%; height: 80%;">
+        <ag-grid-angular
+            style="width: 100%; height: 100%;"
+            class="ag-theme-alpine"
+            [columnDefs]="columnDefs"
+            [defaultColDef]="defaultColDef"
+            [autoGroupColumnDef]="autoGroupColumnDef"
+            [rowData]="rowData$ | async"
+            [groupDefaultExpanded]="-1"
+            [getDataPath]="getDataPath"
+            (gridReady)="onGridReady($event)"
+            (firstDataRendered)="onFirstDataRendered($event)">
+        </ag-grid-angular>
+    </div>
+</div>
+Explanation:
+Filter Input and Buttons:
+
+The filter input allows the user to filter the rows in the grid.
+The "Expand All" and "Collapse All" buttons allow the user to expand or collapse all the grouped rows.
+Date Inputs:
+
+These inputs allow the user to select a start date and an end date for fetching the data.
+ag-Grid Angular Component:
+
+This is the main ag-Grid component that displays the data.
+The [columnDefs], [defaultColDef], and [autoGroupColumnDef] properties define the columns and their default behavior.
+The [rowData] property is bound to the transformed data.
+The [groupDefaultExpanded] property is set to -1 to expand all groups by default.
+The (gridReady) and (firstDataRendered) events are used to handle grid initialization and rendering events.
+getDataPath Function:
+In your app.component.ts, add the getDataPath function to define the path structure for the hierarchical data.
+
+typescript
+Copy code
+getDataPath = (data: any) => {
+  return [data.isx_create_date, data.modelTranId];
+};
+Full app.component.ts (with getDataPath):
+typescript
+Copy code
 import { Component, OnInit } from '@angular/core';
 import { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
-import { Observable, of } from 'rxjs';
+import { Observable, of, forkJoin } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { DatePipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
@@ -12,14 +62,13 @@ import { HttpClient } from '@angular/common/http';
   providers: [DatePipe]
 })
 export class AppComponent implements OnInit {
-  private firstGridApi!: GridApi;
-  private secondGridApi!: GridApi;
+  private gridApi!: GridApi;
   startDate!: string;
   endDate!: string;
-  selectedModelTranId!: string;
 
   public columnDefs: ColDef[] = [
-    { field: 'modelTranId', headerName: 'ModelTranId', flex: 1 },
+    { field: 'isx_create_date', headerName: 'ISX Create Date', rowGroup: true, hide: true },
+    { field: 'modelTranId', headerName: 'ModelTranId', rowGroup: true, hide: true },
     { field: 'file_name', headerName: 'File Name', flex: 1 },
     { field: 'portfolio_name', headerName: 'Portfolio Name', flex: 1 },
     { field: 'ticker', headerName: 'Ticker', flex: 1 },
@@ -39,79 +88,53 @@ export class AppComponent implements OnInit {
     { field: 'sec_type', headerName: 'SEC Type', flex: 1 },
   ];
 
-  public firstGridColumnDefs: ColDef[] = [
-    { 
-      headerCheckboxSelection: true,
-      checkboxSelection: true,
-      field: 'modelTranId', headerName: 'ModelTranId', flex: 1 
-    },
-    { field: 'isx_create_date', headerName: 'ISX Create Date', flex: 1 }
-  ];
-
   public defaultColDef: ColDef = {
     sortable: true,
     filter: true
   };
 
+  public autoGroupColumnDef: ColDef = {
+    headerName: 'Group',
+    cellRendererParams: {
+      suppressCount: true,
+    }
+  };
+
   public rowData$: Observable<any[]> = of([]);
-  public firstGridRowData$: Observable<any[]> = of([]);
-  public secondGridRowData$: Observable<any[]> = of([]);
 
   constructor(private http: HttpClient, private datePipe: DatePipe) {}
 
   ngOnInit(): void {}
 
-  transformData(data: any[]): any[] {
-    return data.map((item, index) => ({
-      id: index + 1,
-      modelTranId: item.modelTranId,
-      file_name: item.file_name,
-      portfolio_name: item.portfolio_name,
-      ticker: item.ticker,
-      sedol: item.sedol,
-      security_name: item.security_name,
-      asset_id: item.asset_id,
-      price: item.price,
-      price_date: new Date(item.price_date).toLocaleDateString(),
-      quantity: item.quantity,
-      new_quantity: item.new_quantity,
-      rounded_pct_portfolio_weight: item.rounded_pct_portfolio_weight,
-      recalc_portfolio_weight: item.recalc_portfolio_weight,
-      aladdin_portfolio_weight: item.aladdin_portfolio_weight,
-      recalc_pct_new_portfolio_weight: item.recalc_pct_new_portfolio_weight,
-      rounded_pct_new_portfolio_weight: item.rounded_pct_new_portfolio_weight,
-      rounded_pct_change_in_portfolio_weight: item.rounded_pct_change_in_portfolio_weight,
-      sec_type: item.sec_type,
-      visible: false // Add this flag
-    }));
+  transformData(firstGridData: any[], secondGridData: any[]): any[] {
+    const combinedData = firstGridData.map(item => {
+      const relatedData = secondGridData.filter(d => d.modelTranId === item.modelTranId);
+      return {
+        isx_create_date: item.isx_create_date,
+        modelTranId: `${item.modelTranId}-${item.file_name}-${item.portfolio_name}`,
+        children: relatedData.map(d => ({
+          ...d,
+          isx_create_date: item.isx_create_date
+        }))
+      };
+    });
+    return combinedData;
   }
 
-  transformFirstGridData(data: any[]): any[] {
-    const uniqueData = data.reduce((acc, item) => {
-      const key = `${item.modelTranId}-${item.isxCreateDate}`;
-      if (!acc[key]) {
-        const date = new Date(item.isxCreateDate);
-        const formattedDate = this.datePipe.transform(date, 'yyyy-MM-dd');
-        acc[key] = {
-          modelTranId: item.modelTranId,
-          isx_create_date: formattedDate ? formattedDate : 'Invalid Date'
-        };
-      }
-      return acc;
-    }, {});
-    return Object.values(uniqueData);
-  }
+  getDataPath = (data: any) => {
+    return [data.isx_create_date, data.modelTranId];
+  };
 
   onFilterTextBoxChanged() {
-    this.secondGridApi.setQuickFilter((document.getElementById('filter-text-box') as any).value);
+    this.gridApi.setQuickFilter((document.getElementById('filter-text-box') as any).value);
   }
 
   expandAll() {
-    this.secondGridApi.expandAll();
+    this.gridApi.expandAll();
   }
 
   collapseAll() {
-    this.secondGridApi.collapseAll();
+    this.gridApi.collapseAll();
   }
 
   onStartDateChange(event: any) {
@@ -125,50 +148,33 @@ export class AppComponent implements OnInit {
   }
 
   fetchDataByDateRange() {
-    this.rowData$ = this.http.get<any[]>(`http://localhost:8080/api/new-model-transactions?start_date=${this.startDate}&end_date=${this.endDate}`).pipe(
-      map(data => this.transformData(data)),
-      catchError(error => {
-        console.error('Error fetching data by date range', error);
-        return of([]);
-      })
-    );
-
-    this.firstGridRowData$ = this.http.get<any[]>(`http://localhost:8080/api/new-model-transactions/dto?start_date=${this.startDate}&end_date=${this.endDate}`).pipe(
+    const firstGridData$ = this.http.get<any[]>(`http://localhost:8080/api/new-model-transactions/dto?start_date=${this.startDate}&end_date=${this.endDate}`).pipe(
       map(data => this.transformFirstGridData(data)),
       catchError(error => {
-        console.error('Error fetching data by date range', error);
+        console.error('Error fetching first grid data by date range', error);
         return of([]);
       })
     );
-  }
 
-  updateSecondGridData(selectedModelTranId: string) {
-    this.secondGridRowData$ = this.http.get<any[]>(`http://localhost:8080/api/model-transactions/${selectedModelTranId}`).pipe(
+    const secondGridData$ = this.http.get<any[]>(`http://localhost:8080/api/new-model-transactions?start_date=${this.startDate}&end_date=${this.endDate}`).pipe(
       map(data => this.transformData(data)),
       catchError(error => {
-        console.error('Error fetching second grid data', error);
+        console.error('Error fetching second grid data by date range', error);
         return of([]);
       })
     );
+
+    forkJoin([firstGridData$, secondGridData$]).pipe(
+      map(([firstGridData, secondGridData]) => this.transformData(firstGridData, secondGridData)),
+      catchError(error => {
+        console.error('Error combining data', error);
+        return of([]);
+      })
+    ).subscribe(combinedData => this.rowData$ = of(combinedData));
   }
 
-  onFirstGridSelectionChanged() {
-    const selectedNodes = this.firstGridApi.getSelectedNodes();
-    if (selectedNodes.length > 0) {
-      const selectedModelTranId = selectedNodes[0].data.modelTranId;
-      this.updateSecondGridData(selectedModelTranId);
-    } else {
-      // Clear the second grid data when no row is selected
-      this.secondGridRowData$ = of([]);
-    }
-  }
-
-  onFirstGridReady(params: GridReadyEvent) {
-    this.firstGridApi = params.api;
-  }
-
-  onSecondGridReady(params: GridReadyEvent) {
-    this.secondGridApi = params.api;
+  onGridReady(params: GridReadyEvent) {
+    this.gridApi = params.api;
   }
 
   onFirstDataRendered(params: any) {
