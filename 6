@@ -12,7 +12,6 @@ export class AppComponent {
 
   public columnDefs: ColDef[] = [
     { field: 'category', headerName: 'Category', rowGroup: true, hide: true },
-    { field: 'subcategory', headerName: 'Subcategory', rowGroup: true, hide: true },
     { field: 'id', headerName: 'ID' },
     { field: 'name', headerName: 'Name' },
     { field: 'detail', headerName: 'Detail' }
@@ -27,16 +26,23 @@ export class AppComponent {
     headerName: 'Group',
     cellRendererParams: {
       suppressCount: true,
+      innerRenderer: params => {
+        if (params.node.group) {
+          const ids = params.node.allLeafChildren.map(child => child.data.id).join(', ');
+          return `${params.node.key} (IDs: ${ids})`;
+        }
+        return params.value;
+      }
     }
   };
 
   public rowData$: Observable<any[]> = of([
-    { category: 'Category 1', subcategory: 'Subcategory 1.1', id: 1, name: 'Item 1', detail: 'Detail for Item 1' },
-    { category: 'Category 1', subcategory: 'Subcategory 1.1', id: 2, name: 'Item 2', detail: 'Detail for Item 2' },
-    { category: 'Category 1', subcategory: 'Subcategory 1.2', id: 3, name: 'Item 3', detail: 'Detail for Item 3' },
-    { category: 'Category 2', subcategory: 'Subcategory 2.1', id: 4, name: 'Item 4', detail: 'Detail for Item 4' },
-    { category: 'Category 2', subcategory: 'Subcategory 2.1', id: 5, name: 'Item 5', detail: 'Detail for Item 5' },
-    { category: 'Category 2', subcategory: 'Subcategory 2.2', id: 6, name: 'Item 6', detail: 'Detail for Item 6' }
+    { category: 'Category 1', id: 1, name: 'Item 1', detail: 'Detail for Item 1' },
+    { category: 'Category 1', id: 2, name: 'Item 2', detail: 'Detail for Item 2' },
+    { category: 'Category 1', id: 3, name: 'Item 3', detail: 'Detail for Item 3' },
+    { category: 'Category 2', id: 4, name: 'Item 4', detail: 'Detail for Item 4' },
+    { category: 'Category 2', id: 5, name: 'Item 5', detail: 'Detail for Item 5' },
+    { category: 'Category 2', id: 6, name: 'Item 6', detail: 'Detail for Item 6' }
   ]);
 
   onGridReady(params: GridReadyEvent) {
@@ -45,7 +51,7 @@ export class AppComponent {
   }
 
   getDataPath = (data: any) => {
-    return [data.category, data.subcategory, data.name];
+    return [data.category, data.name];
   };
 }
 app.component.html
