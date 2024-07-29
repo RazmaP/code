@@ -11,6 +11,7 @@ export class AppComponent {
   private gridApi!: GridApi;
 
   public columnDefs: ColDef[] = [
+    { field: 'categoryIds', headerName: 'Category IDs', valueGetter: this.categoryIdsValueGetter },
     { field: 'category', headerName: 'Category', rowGroup: true, hide: true },
     { field: 'id', headerName: 'ID' },
     { field: 'name', headerName: 'Name' },
@@ -26,9 +27,9 @@ export class AppComponent {
     headerName: 'Group',
     cellRendererParams: {
       suppressCount: true,
-      innerRenderer: params => {
+      innerRenderer: (params: any) => {
         if (params.node.group) {
-          const ids = params.node.allLeafChildren.map(child => child.data.id).join(', ');
+          const ids = params.node.allLeafChildren.map((child: any) => child.data.id).join(', ');
           return `${params.node.key} (IDs: ${ids})`;
         }
         return params.value;
@@ -50,9 +51,17 @@ export class AppComponent {
     params.api.sizeColumnsToFit();
   }
 
-  getDataPath = (data: any) => {
+  getDataPath = (data: any): string[] => {
     return [data.category, data.name];
   };
+
+  categoryIdsValueGetter(params: any): string {
+    if (params.node.group) {
+      const ids = params.node.allLeafChildren.map((child: any) => child.data.id).join(', ');
+      return ids;
+    }
+    return '';
+  }
 }
 app.component.html
 html
