@@ -8,75 +8,62 @@ import { Observable, of } from 'rxjs';
   styleUrls: ['./app.component.scss']
 })
 export class AppComponent {
-  private firstGridApi!: GridApi;
-  private secondGridApi!: GridApi;
+  private gridApi!: GridApi;
 
-  public firstGridColumnDefs: ColDef[] = [
-    { field: 'id', headerName: 'ID', checkboxSelection: true, headerCheckboxSelection: true },
-    { field: 'name', headerName: 'Name' }
-  ];
-
-  public secondGridColumnDefs: ColDef[] = [
+  public columnDefs: ColDef[] = [
+    { field: 'category', headerName: 'Category', rowGroup: true, hide: true },
+    { field: 'subcategory', headerName: 'Subcategory', rowGroup: true, hide: true },
+    { field: 'id', headerName: 'ID' },
+    { field: 'name', headerName: 'Name' },
     { field: 'detail', headerName: 'Detail' }
   ];
 
-  public firstGridRowData$: Observable<any[]> = of([
-    { id: 1, name: 'John' },
-    { id: 2, name: 'Jane' },
-    { id: 3, name: 'Bob' }
+  public defaultColDef: ColDef = {
+    sortable: true,
+    filter: true
+  };
+
+  public autoGroupColumnDef: ColDef = {
+    headerName: 'Group',
+    cellRendererParams: {
+      suppressCount: true,
+    }
+  };
+
+  public rowData$: Observable<any[]> = of([
+    { category: 'Category 1', subcategory: 'Subcategory 1.1', id: 1, name: 'Item 1', detail: 'Detail for Item 1' },
+    { category: 'Category 1', subcategory: 'Subcategory 1.1', id: 2, name: 'Item 2', detail: 'Detail for Item 2' },
+    { category: 'Category 1', subcategory: 'Subcategory 1.2', id: 3, name: 'Item 3', detail: 'Detail for Item 3' },
+    { category: 'Category 2', subcategory: 'Subcategory 2.1', id: 4, name: 'Item 4', detail: 'Detail for Item 4' },
+    { category: 'Category 2', subcategory: 'Subcategory 2.1', id: 5, name: 'Item 5', detail: 'Detail for Item 5' },
+    { category: 'Category 2', subcategory: 'Subcategory 2.2', id: 6, name: 'Item 6', detail: 'Detail for Item 6' }
   ]);
 
-  public secondGridRowData$: Observable<any[]> = of([]);
-
-  onFirstGridReady(params: GridReadyEvent) {
-    this.firstGridApi = params.api;
+  onGridReady(params: GridReadyEvent) {
+    this.gridApi = params.api;
+    params.api.sizeColumnsToFit();
   }
 
-  onSecondGridReady(params: GridReadyEvent) {
-    this.secondGridApi = params.api;
-  }
-
-  onFirstGridSelectionChanged() {
-    const selectedNodes = this.firstGridApi.getSelectedNodes();
-    const selectedIds = selectedNodes.map(node => node.data.id);
-    this.updateSecondGridData(selectedIds);
-  }
-
-  updateSecondGridData(selectedIds: number[]) {
-    const data = [
-      { id: 1, detail: 'Detail for John' },
-      { id: 2, detail: 'Detail for Jane' },
-      { id: 3, detail: 'Detail for Bob' }
-    ];
-
-    const filteredData = data.filter(item => selectedIds.includes(item.id));
-    this.secondGridRowData$ = of(filteredData);
-  }
+  getDataPath = (data: any) => {
+    return [data.category, data.subcategory, data.name];
+  };
 }
 app.component.html
 html
 Copy code
 <div class="example-wrapper" style="width: 100%; height: 100%; overflow-x: auto;">
-  <div style="width: 100%; height: 50%;">
+  <div style="width: 100%; height: 100%;">
     <ag-grid-angular
       style="width: 100%; height: 100%;"
       class="ag-theme-alpine"
-      [columnDefs]="firstGridColumnDefs"
-      [defaultColDef]="{ sortable: true, filter: true }"
-      [rowData]="firstGridRowData$ | async"
-      rowSelection="multiple"
-      (gridReady)="onFirstGridReady($event)"
-      (selectionChanged)="onFirstGridSelectionChanged()">
-    </ag-grid-angular>
-  </div>
-  <div style="width: 100%; height: 50%;">
-    <ag-grid-angular
-      style="width: 100%; height: 100%;"
-      class="ag-theme-alpine"
-      [columnDefs]="secondGridColumnDefs"
-      [defaultColDef]="{ sortable: true, filter: true }"
-      [rowData]="secondGridRowData$ | async"
-      (gridReady)="onSecondGridReady($event)">
+      [columnDefs]="columnDefs"
+      [defaultColDef]="defaultColDef"
+      [autoGroupColumnDef]="autoGroupColumnDef"
+      [rowData]="rowData$ | async"
+      [treeData]="true"
+      [groupDefaultExpanded]="-1"
+      [getDataPath]="getDataPath"
+      (gridReady)="onGridReady($event)">
     </ag-grid-angular>
   </div>
 </div>
