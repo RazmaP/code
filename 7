@@ -1,0 +1,312 @@
+Certainly! Here's a step-by-step guide with all the necessary commands, file structures, and code to refactor your Angular project by splitting the code into multiple components.
+
+### 1. **Generate the New Components**
+
+First, navigate to your Angular project directory in the terminal and generate the new components using the following commands:
+
+```bash
+ng generate component grid
+ng generate component filter
+ng generate component toolbar
+```
+
+These commands will create the following structure in your `src/app` directory:
+
+```
+src/app/
+  ├── app.component.ts
+  ├── app.component.html
+  ├── app.component.scss
+  ├── grid/
+  │   ├── grid.component.ts
+  │   ├── grid.component.html
+  │   ├── grid.component.scss
+  ├── filter/
+  │   ├── filter.component.ts
+  │   ├── filter.component.html
+  │   ├── filter.component.scss
+  ├── toolbar/
+  │   ├── toolbar.component.ts
+  │   ├── toolbar.component.html
+  │   ├── toolbar.component.scss
+```
+
+### 2. **Move Code to the New Components**
+
+Now, you will move specific parts of your current `AppComponent` to these new components.
+
+#### **Grid Component (`grid.component.ts`)**
+
+Create the `GridComponent` to handle the grid's functionality:
+
+```typescript
+// src/app/grid/grid.component.ts
+import { Component, OnInit, Input } from '@angular/core';
+import { GridReadyEvent, GridApi, ColDef } from 'ag-grid-community';
+import { DatePipe } from '@angular/common';
+
+@Component({
+  selector: 'app-grid',
+  templateUrl: './grid.component.html',
+  styleUrls: ['./grid.component.scss']
+})
+export class GridComponent implements OnInit {
+  @Input() rowData: any[] = [];
+  @Input() startDate!: string;
+  @Input() endDate!: string;
+  @Input() selectedModelTranId!: string;
+
+  private gridApi!: GridApi;
+
+  public columnDefs: ColDef[] = [
+    { field: 'isx_create_date', headerName: 'ISX Create Date', minWidth: 200 },
+    { field: 'transaction_status', headerName: 'Transaction Status', minWidth: 200 },
+    { field: 'modelTranId', headerName: 'ModelTranId', hide: true, minWidth: 200 },
+    { field: 'file_name', headerName: 'File Name', flex: 1, minWidth: 160 },
+    { field: 'portfolio_name', headerName: 'Portfolio Name', flex: 1, minWidth: 300 },
+    { field: 'ticker', headerName: 'Ticker', flex: 1, minWidth: 150 },
+    // other column definitions...
+  ];
+
+  public defaultColDef: ColDef = {
+    sortable: true,
+    filter: true,
+    flex: 1
+  };
+
+  constructor(private datePipe: DatePipe) {}
+
+  ngOnInit(): void {}
+
+  onGridReady(params: GridReadyEvent) {
+    this.gridApi = params.api;
+  }
+
+  expandAll() {
+    this.gridApi.expandAll();
+  }
+
+  collapseAll() {
+    this.gridApi.collapseAll();
+  }
+
+  onRowClicked(event: any) {
+    this.selectedModelTranId = event.data.modelTranId;
+    // Emit event or handle selection
+  }
+
+  isxCreateDateValueGetter(params: any): string {
+    return params.data.isx_create_date;
+  }
+
+  transactionStatusValueGetter(params: any): string {
+    return params.data.transaction_status;
+  }
+}
+```
+
+**Template (`grid.component.html`):**
+
+```html
+<!-- src/app/grid/grid.component.html -->
+<ag-grid-angular
+  style="width: 100%; height: 100%;"
+  class="ag-theme-alpine"
+  [rowData]="rowData"
+  [columnDefs]="columnDefs"
+  [defaultColDef]="defaultColDef"
+  (gridReady)="onGridReady($event)"
+  (rowClicked)="onRowClicked($event)">
+</ag-grid-angular>
+```
+
+#### **Filter Component (`filter.component.ts`)**
+
+Create the `FilterComponent` to handle filtering:
+
+```typescript
+// src/app/filter/filter.component.ts
+import { Component, Input } from '@angular/core';
+import { GridApi } from 'ag-grid-community';
+
+@Component({
+  selector: 'app-filter',
+  templateUrl: './filter.component.html',
+  styleUrls: ['./filter.component.scss']
+})
+export class FilterComponent {
+  @Input() gridApi!: GridApi;
+
+  onFilterTextBoxChanged(event: any) {
+    const filterValue = event.target.value;
+    this.gridApi.setQuickFilter(filterValue);
+  }
+}
+```
+
+**Template (`filter.component.html`):**
+
+```html
+<!-- src/app/filter/filter.component.html -->
+<div>
+  <input
+    type="text"
+    id="filter-text-box"
+    placeholder="Filter..."
+    (input)="onFilterTextBoxChanged($event)" />
+</div>
+```
+
+#### **Toolbar Component (`toolbar.component.ts`)**
+
+Create the `ToolbarComponent` for toolbar functionality such as exporting data:
+
+```typescript
+// src/app/toolbar/toolbar.component.ts
+import { Component, Input } from '@angular/core';
+import { GridApi } from 'ag-grid-community';
+
+@Component({
+  selector: 'app-toolbar',
+  templateUrl: './toolbar.component.html',
+  styleUrls: ['./toolbar.component.scss']
+})
+export class ToolbarComponent {
+  @Input() gridApi!: GridApi;
+  @Input() startDate!: string;
+  @Input() endDate!: string;
+
+  onBtExport(selectedOnly: boolean) {
+    const params = selectedOnly ? { onlySelected: true } : {};
+    this.gridApi.exportDataAsExcel(params);
+  }
+
+  onStartDateChange(event: any) {
+    this.startDate = event.target.value;
+  }
+
+  onEndDateChange(event: any) {
+    this.endDate = event.target.value;
+  }
+}
+```
+
+**Template (`toolbar.component.html`):**
+
+```html
+<!-- src/app/toolbar/toolbar.component.html -->
+<div>
+  <label>Start Date:</label>
+  <input type="date" (change)="onStartDateChange($event)" />
+
+  <label>End Date:</label>
+  <input type="date" (change)="onEndDateChange($event)" />
+
+  <button (click)="onBtExport(false)">Export All</button>
+  <button (click)="onBtExport(true)">Export Selected</button>
+</div>
+```
+
+### 3. **Update the AppComponent**
+
+Finally, update the `AppComponent` to include the new components and manage the data flow between them.
+
+**`app.component.ts`:**
+
+```typescript
+// src/app/app.component.ts
+import { Component } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable, of } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
+import { DatePipe } from '@angular/common';
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.scss']
+})
+export class AppComponent {
+  public rowData$: Observable<any[]> = of([]);
+  public startDate: string = '';
+  public endDate: string = '';
+  public selectedModelTranId: string = '';
+
+  constructor(private http: HttpClient, private datePipe: DatePipe) {}
+
+  fetchDataByDateRange() {
+    this.rowData$ = this.http.get<any>(`http://localhost:8080/isxapi/api/new-model-transactions?start_date=${this.startDate}&end_date=${this.endDate}`).pipe(
+      map(data => this.transformData(data)),
+      catchError(error => {
+        console.error('Error fetching data:', error);
+        return of([]);
+      })
+    );
+  }
+
+  transformData(data: any[]): any[] {
+    return data.map(item => ({
+      ticker: item.ticker,
+      isx_create_date: this.datePipe.transform(item.isx_create_date, 'yyyy-MM-dd HH:mm:ss'),
+      transaction_status: item.transaction_status,
+      modelTranId: item.modelTranId,
+      file_name: item.file_name,
+      portfolio_name: item.portfolio_name
+      // other fields...
+    }));
+  }
+}
+```
+
+**`app.component.html`:**
+
+```html
+<!-- src/app/app.component.html -->
+<app-toolbar
+  [gridApi]="secondGridApi"
+  [startDate]="startDate"
+  [endDate]="endDate">
+</app-toolbar>
+
+<app-filter [gridApi]="secondGridApi"></app-filter>
+
+<app-grid
+  [rowData]="rowData$ | async"
+  [startDate]="startDate"
+  [endDate]="endDate"
+  [selectedModelTranId]="selectedModelTranId">
+</app-grid>
+```
+
+### 4. **Update Module Declarations**
+
+Finally, make sure to declare the new components in your `AppModule`:
+
+```typescript
+// src/app/app.module.ts
+import { NgModule } from '@angular/core';
+import { BrowserModule } from '@angular/platform-browser';
+import { HttpClientModule } from '@angular/common/http';
+import { AgGridModule } from 'ag-grid-angular';
+
+import { AppComponent } from './app.component';
+import { GridComponent } from './grid/grid.component';
+import { FilterComponent } from './filter/filter.component';
+import { ToolbarComponent } from './toolbar/toolbar.component';
+
+@NgModule({
+  declarations: [
+    AppComponent,
+    GridComponent,
+    FilterComponent,
+    ToolbarComponent
+  ],
+  imports: [
+    BrowserModule,
+    HttpClientModule,
+    AgGridModule.withComponents([])
+  ],
+  providers: [],
+  bootstrap: [AppComponent]
+})
+export class
